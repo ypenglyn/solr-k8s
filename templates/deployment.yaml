@@ -1,0 +1,74 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-search-deployment
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: search-deployment
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: search
+  template:
+    metadata:
+      labels:
+        app: search
+    spec:
+      initContainers:
+      - name: volume-mount-setup
+        image: busybox
+        command:
+          - "sh"
+          - "-c"
+          - "chown -R 8983:8983 /usr/workspace/ssd_data && rm -rf /usr/workspace/ssd_data/*"
+        volumeMounts:
+        - mountPath: "/usr/workspace/ssd_data"
+          name: "ssd-volume"
+      containers:
+      - name: search-{{ .Release.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        resources:
+          requests:
+            memory: {{ .Values.resources.requests.memory | quote }}
+            cpu: {{ .Values.resources.requests.cpu | quote }}
+        ports:
+        - containerPort: 8983
+          name: console
+        - containerPort: 18983
+          name: jmx
+        volumeMounts:
+        - mountPath: "/usr/workspace/ssd_data"
+          name: "ssd-volume"
+        - mountPath: "/usr/workspace/extra_config"
+          name: "extra-config"
+        command:
+          - 'solr'
+          - 'start'
+          - '-f'
+          - '-Djava.rmi.server.hostname=localhost'
+        env:
+        - name: LOG4J_PROPS
+          value: "/usr/workspace/extra_config/log4j.properties"
+        - name: SOLR_DATA_HOME
+          value: "/usr/workspace/ssd_data"
+        - name: SOLR_JAVA_MEM
+          value: >
+            -Xms4g
+            -Xmx4g
+        - name: GC_TUNE
+          value: >
+            -XX:+UseG1GC
+        - name: ENABLE_REMOTE_JMX_OPTS
+          value: "true"
+        - name: RMI_PORT
+          value: "18983"
+      volumes:
+      - name: "ssd-volume"
+        hostPath:
+          path: "/mnt/disks/ssd0/solr"
+          type: "DirectoryOrCreate"
+      - name: "extra-config"
+        configMap:
+          name: {{ .Release.Name }}-search-config

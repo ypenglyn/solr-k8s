@@ -1,0 +1,25 @@
+
+replicaCount: 1
+
+image:
+  repository: solr
+  tag: 7.2
+  pullPolicy: IfNotPresent
+
+service:
+  type: LoadBalancer
+  port: 80
+
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 4
+    memory: 16Gi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
